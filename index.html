@@ -1,0 +1,130 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>StudentRegistry DApp (Sepolia)</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <script src="https://cdn.jsdelivr.net/npm/ethers@5.7.2/dist/ethers.umd.min.js"></script>
+  <style>
+    body { font-family: system-ui, Arial; max-width: 900px; margin: 24px auto; padding: 0 16px; }
+    h1 { margin: 0 0 8px; }
+    .card { border: 1px solid #ddd; border-radius: 12px; padding: 16px; margin: 12px 0; }
+    input, button { padding: 10px 12px; border-radius: 10px; border: 1px solid #bbb; }
+    button { cursor: pointer; }
+    .row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+    .muted { color: #666; font-size: 14px; }
+    pre { background: #fafafa; padding: 12px; border-radius: 10px; overflow: auto; }
+  </style>
+</head>
+<body>
+  <h1>StudentRegistry</h1>
+  <div class="muted">Network: <b>Sepolia Testnet</b> • Contract:
+    <code id="addr">0x71f45441d96524fa91a15e8e4b2aeaa9a6d1bcd</code>
+  </div>
+
+  <div class="card">
+    <div class="row">
+      <button id="connect">🔗 Connect MetaMask</button>
+      <button id="checkNet">🔍 Check Network</button>
+      <span id="net" class="muted"></span>
+    </div>
+  </div>
+
+  <div class="card">
+    <h3>Add Student</h3>
+    <div class="row">
+      <input id="name" placeholder="Student name" />
+      <button id="add">➕ Add</button>
+    </div>
+    <div class="muted">Tx: <span id="txadd">—</span></div>
+  </div>
+
+  <div class="card">
+    <h3>Get Student</h3>
+    <div class="row">
+      <input id="id" placeholder="id (e.g., 1)" />
+      <button id="get">📖 Get</button>
+    </div>
+    <pre id="output">—</pre>
+  </div>
+
+  <div class="card">
+    <h3>Stats</h3>
+    <button id="refresh">🔁 Get count()</button>
+    <div class="muted">count: <span id="count">—</span></div>
+  </div>
+
+  <script>
+    const CONTRACT_ADDRESS = "0x71f45441d96524fa91a15e8e4b2aeaa9a6d1bcd";
+    const ABI = [
+      {"inputs":[],"name":"count","outputs":[{"internalType":"uint256","name":"","type":"uint256"}],"stateMutability":"view","type":"function"},
+      {"inputs":[{"internalType":"string","name":"name","type":"string"}],"name":"addStudent","outputs":[],"stateMutability":"nonpayable","type":"function"},
+      {"inputs":[{"internalType":"uint256","name":"id","type":"uint256"}],"name":"getStudent","outputs":[{"internalType":"string","name":"","type":"string"}],"stateMutability":"view","type":"function"}
+    ];
+
+    let provider, signer, contract;
+
+    async function ensureConnected() {
+      if (!window.ethereum) { alert("MetaMask is required"); return false; }
+      await window.ethereum.request({ method: "eth_requestAccounts" });
+      provider = new ethers.providers.Web3Provider(window.ethereum);
+      signer = provider.getSigner();
+      contract = new ethers.Contract(CONTRACT_ADDRESS, ABI, signer);
+      return true;
+    }
+
+    async function checkNetwork() {
+      if (!provider) return;
+      const net = await provider.getNetwork();
+      const msg = `chainId=${net.chainId} (${net.name})`;
+      document.getElementById("net").innerText = msg + (net.chainId === 11155111 ? " ✅" : " ❌ Use Sepolia");
+    }
+
+    document.getElementById("connect").onclick = async () => {
+      if (await ensureConnected()) { await checkNetwork(); alert("Connected"); }
+    };
+
+    document.getElementById("checkNet").onclick = async () => { await checkNetwork(); };
+
+    document.getElementById("add").onclick = async () => {
+      try {
+        if (!contract) { if (!(await ensureConnected())) return; }
+        const name = document.getElementById("name").value.trim();
+        if (!name) return alert("Enter a name");
+        const tx = await contract.addStudent(name);
+        document.getElementById("txadd").innerText = tx.hash;
+        await tx.wait();
+        alert("Added!");
+      } catch (e) {
+        alert("Error: " + (e?.message || e));
+      }
+    };
+
+    document.getElementById("get").onclick = async () => {
+      try {
+        if (!contract) { if (!(await ensureConnected())) return; }
+        const id = document.getElementById("id").value;
+        const s = await contract.getStudent(id);
+        document.getElementById("output").innerText = JSON.stringify({ id, name: s }, null, 2);
+      } catch (e) {
+        document.getElementById("output").innerText = "Error: " + (e?.message || e);
+      }
+    };
+
+    document.getElementById("refresh").onclick = async () => {
+      try {
+        if (!contract) { if (!(await ensureConnected())) return; }
+        const c = await contract.count();
+        document.getElementById("count").innerText = c.toString();
+      } catch (e) {
+        document.getElementById("count").innerText = "Error";
+      }
+    };
+
+    if (window.ethereum) {
+      window.ethereum.on('chainChanged', () => location.reload());
+      window.ethereum.on('accountsChanged', () => location.reload());
+    }
+  </script>
+</body>
+</html>
